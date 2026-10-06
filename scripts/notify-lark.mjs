@@ -60,7 +60,7 @@ function versionLabel(entry) {
   return `${entry.version || entry.tag}${entry.file ? ` · ${entry.file}` : ''}`;
 }
 
-async function sendAppCard(accessToken, chatId, links) {
+export async function sendAppCard(accessToken, chatId, links) {
   const elements = [];
   for (const entry of links.entries) {
     const platform = entry.installUrl ? 'iOS' : 'Android';
