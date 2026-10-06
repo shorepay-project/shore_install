@@ -11,7 +11,7 @@
 从本仓库运行：
 
 ```bash
-./scripts/build-and-publish.sh
+VERSION_CODE=<产品版本码> ./scripts/build-and-publish.sh
 ```
 
 脚本依次执行 ShorePay 的 `build_release.sh apk --skip-reseed` 和 `build_release.sh ipa --skip-reseed`，检查两份新产物，然后创建含 APK 与 IPA 的 GitHub Release。现有构建脚本仍会按原设置上传符号；构建或符号上传失败时不会发布安装包。

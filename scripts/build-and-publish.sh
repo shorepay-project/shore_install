@@ -13,6 +13,10 @@ if [ -n "$(git -C "$APP_DIR" status --porcelain)" ]; then
   echo 'ShorePay source must be clean before building a release.' >&2
   exit 1
 fi
+if [ "$(git -C "$APP_DIR" rev-parse HEAD)" != "$(git -C "$APP_DIR" rev-parse --verify refs/remotes/origin/main_v2 2>/dev/null || true)" ]; then
+  echo 'main_v2 must match origin/main_v2 before building a release.' >&2
+  exit 1
+fi
 
 MARKER="$(mktemp)"
 trap 'rm -f "$MARKER"' EXIT
@@ -24,7 +28,7 @@ trap 'rm -f "$MARKER"' EXIT
 )
 
 APK="$APP_DIR/build/app/outputs/flutter-apk/app-release.apk"
-IPA="$(find "$APP_DIR/build/ios/ipa" -maxdepth 1 -name '*.ipa' -newer "$MARKER" -print | sort | head -n 1)"
+IPA="$(find "$APP_DIR/build/ios/ipa" -maxdepth 1 -name '*.ipa' -newer "$MARKER" -print | sort | awk 'NR==1')"
 if [ ! -f "$APK" ] || [ ! "$APK" -nt "$MARKER" ] || [ -z "$IPA" ]; then
   echo 'A new APK and IPA were not both produced; nothing was published.' >&2
   exit 1
