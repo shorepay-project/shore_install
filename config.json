@@ -1,0 +1,10 @@
+{
+  "repo": "shorepay-project/shore_install",
+  "publicUrl": "https://shorepay-project.github.io/shore_install",
+  "siteTitle": "ShorePay 内测分发",
+  "maxVersionsPerApp": 3,
+  "appMetadata": [
+    { "id": "shorepay-v2", "name": "ShorePay V2" },
+    { "bundleId": "com.cloudsshore.wallet", "name": "ShorePay V2" }
+  ]
+}

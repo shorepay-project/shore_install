@@ -1,0 +1,81 @@
+name: Publish distribution page
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published, edited, unpublished, deleted]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shore-install-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - name: Read releases and generate installation files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distribution-metadata
+          path: docs/apps.json
+          retention-days: 1
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  notify:
+    needs: deploy
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: distribution-metadata
+          path: docs
+      - name: Notify Lark group
+        env:
+          LARK_APP_ID: ${{ secrets.LARK_APP_ID }}
+          LARK_APP_SECRET: ${{ secrets.LARK_APP_SECRET }}
+          LARK_CHAT_ID: ${{ secrets.LARK_CHAT_ID }}
+          LARK_WEBHOOK_URL: ${{ secrets.LARK_WEBHOOK_URL }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: npm run notify-lark

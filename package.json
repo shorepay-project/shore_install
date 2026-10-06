@@ -1,0 +1,21 @@
+{
+  "name": "shore-install",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ShorePay internal iOS and Android distribution",
+  "scripts": {
+    "build": "node scripts/build-metadata.mjs",
+    "notify-lark": "node scripts/notify-lark.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "app-info-parser": "^1.1.6",
+    "cgbi-to-png": "^1.0.7",
+    "pe-library": "^1.0.1",
+    "qrcode": "^1.5.4",
+    "resedit": "^2.0.3",
+    "simple-plist": "^1.4.0"
+  }
+}

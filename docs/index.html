@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>ShorePay 内测分发</title>
+  <link rel="stylesheet" href="assets/style.css?v=8" />
+</head>
+<body>
+  <header class="site-header">
+    <h1 id="site-title">ShorePay 内测分发</h1>
+    <p class="meta" id="generated-at"></p>
+  </header>
+
+  <main id="app-list" class="app-list">
+    <div class="empty" id="empty-state">正在加载…</div>
+  </main>
+
+  <div class="modal" id="qr-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <h3 id="qr-title">扫码安装</h3>
+      <div id="qr-canvas"></div>
+      <p class="hint" id="qr-hint"></p>
+      <button type="button" class="btn-close" data-close>关闭</button>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <span>iOS 仅限已登记设备安装 · Android 需允许未知来源</span>
+  </footer>
+
+  <script src="assets/qrcode.min.js?v=4" defer></script>
+  <script src="assets/app.js?v=12" defer></script>
+</body>
+</html>

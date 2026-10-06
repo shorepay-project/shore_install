@@ -1,0 +1,282 @@
+(function () {
+  const PLATFORM_META = {
+    ios:     { btnLabel: 'iOS 安装',     qrTitle: '用 iOS 手机扫码安装',   hint: '仅白名单（UDID）设备可安装', histLabel: '安装', histTitle: 'iOS 历史版本' },
+    android: { btnLabel: 'Android 安装', qrTitle: '用 Android 手机扫码下载', hint: '下载后请允许"未知来源"安装', histLabel: '下载', histTitle: 'Android 历史版本' },
+    mac:     { btnLabel: 'Mac 下载',     qrTitle: '扫码在 Mac 上下载',      hint: '下载后双击 .dmg 拖入 Applications', histLabel: '下载', histTitle: 'Mac 历史版本' },
+    win:     { btnLabel: 'Windows 下载', qrTitle: '扫码在 Windows 上下载',  hint: '.exe 直接运行；.zip 解压后运行',   histLabel: '下载', histTitle: 'Windows 历史版本' }
+  };
+
+  const WIN_EXE_META = { btnLabel: 'Windows 安装版', qrTitle: '扫码下载 Windows 安装版', hint: '.exe 双击运行安装程序', histLabel: '安装', histTitle: 'Windows 安装版历史' };
+  const WIN_ZIP_META = { btnLabel: 'Windows 便携版', qrTitle: '扫码下载 Windows 便携版', hint: '.zip 解压后直接运行',   histLabel: '下载', histTitle: 'Windows 便携版历史' };
+
+  const isExe = (e) => /\.exe$/i.test(e.file || '');
+  const isZip = (e) => /\.zip$/i.test(e.file || '');
+
+  const entryUrl = (p, e) => p === 'ios' ? e.installUrl : e.downloadUrl;
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+  function fmtTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function fmtSize(bytes) {
+    if (!bytes) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let v = bytes, i = 0;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(v >= 10 ? 0 : 1)} ${units[i]}`;
+  }
+
+  function countValue(value) {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  function fmtDownloads(count, label = '下载') {
+    const n = countValue(count);
+    if (n === null) return '';
+    return `${label} ${n.toLocaleString('zh-CN')} 次`;
+  }
+
+  function iconFallback(name) {
+    const div = document.createElement('div');
+    div.className = 'icon icon-fallback';
+    div.textContent = (name || '?').slice(0, 1).toUpperCase();
+    return div;
+  }
+
+  function renderIcon(app) {
+    if (app.icon) {
+      const img = new Image();
+      img.src = app.icon;
+      img.className = 'icon';
+      img.alt = app.name;
+      img.onerror = () => img.replaceWith(iconFallback(app.name));
+      return img;
+    }
+    return iconFallback(app.name);
+  }
+
+  function platformBtn(platform, entry, override, showBundleId = false) {
+    const meta = { ...PLATFORM_META[platform], ...(override || {}) };
+    const wrap = document.createElement('div');
+    wrap.className = `btn-group btn-group-${platform}`;
+
+    const a = document.createElement('a');
+    a.className = `btn btn-${platform}`;
+    const metaLine = [`v${entry.version}`, fmtSize(entry.size)].filter(Boolean).join(' · ');
+    const timeLine = fmtTime(entry.uploadedAt);
+    const downloadLine = fmtDownloads(entry.downloadCount);
+    const label = document.createElement('span');
+    label.className = 'btn-label';
+    label.textContent = meta.btnLabel;
+    const details = document.createElement('small');
+    details.className = 'btn-meta';
+    details.appendChild(document.createTextNode(metaLine));
+    if (timeLine) {
+      details.appendChild(document.createElement('br'));
+      details.appendChild(document.createTextNode(`更新于 ${timeLine}`));
+    }
+    if (downloadLine) {
+      details.appendChild(document.createElement('br'));
+      details.appendChild(document.createTextNode(downloadLine));
+    }
+    a.append(label, details);
+    if (showBundleId && entry.bundleId) {
+      const bundle = document.createElement('small');
+      bundle.className = 'btn-bundle';
+      bundle.textContent = `包名: ${entry.bundleId}`;
+      bundle.title = entry.bundleId;
+      a.appendChild(bundle);
+    }
+    const url = entryUrl(platform, entry);
+    a.href = url;
+    // 安卓:用 download 属性 + rel 把链接锁定为"下载该文件",避免某些浏览器顺手预读其它链接
+    if (platform === 'android' && entry.file) {
+      a.setAttribute('download', entry.file);
+      a.rel = 'noopener';
+    }
+
+    const qr = document.createElement('button');
+    qr.type = 'button';
+    qr.className = `btn-qr btn-qr-${platform}`;
+    qr.title = '扫码下载';
+    qr.setAttribute('aria-label', '扫码下载');
+    qr.innerHTML = qrIconSvg();
+    qr.addEventListener('click', (ev) => { ev.stopPropagation(); openQr(meta.qrTitle, url, meta.hint); });
+
+    wrap.append(a, qr);
+    return wrap;
+  }
+
+  function qrIconSvg() {
+    return '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">' +
+      '<path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm8 0h2v2h-2v-2zm4 0h2v2h-2v-2zm2 2h2v2h-2v-2zm-6 2h2v2h-2v-2zm4 0h2v2h-2v-2zm2 2h2v2h-2v-2zm-6 0h2v2h-2v-2z"/>' +
+      '</svg>';
+  }
+
+  function historySection(platform, list, override) {
+    if (!list.length) return null;
+    const meta = { ...PLATFORM_META[platform], ...(override || {}) };
+    const wrap = document.createElement('div');
+    wrap.className = 'history-group';
+    const h = document.createElement('h4');
+    h.textContent = meta.histTitle;
+    wrap.appendChild(h);
+    list.forEach(e => {
+      const row = document.createElement('div');
+      row.className = 'history-item';
+      const ver = document.createElement('span');
+      ver.className = 'ver';
+      ver.textContent = 'v' + e.version;
+      const when = document.createElement('span');
+      when.className = 'when';
+      when.textContent = [fmtTime(e.uploadedAt), fmtSize(e.size), fmtDownloads(e.downloadCount)]
+        .filter(Boolean)
+        .join(' · ');
+      const url = entryUrl(platform, e);
+      const a = document.createElement('a');
+      a.textContent = meta.histLabel;
+      a.href = url;
+      if (platform === 'android' && e.file) {
+        a.setAttribute('download', e.file);
+        a.rel = 'noopener';
+      }
+      const qr = document.createElement('button');
+      qr.type = 'button';
+      qr.className = 'history-qr';
+      qr.title = '扫码' + meta.histLabel;
+      qr.setAttribute('aria-label', '扫码' + meta.histLabel);
+      qr.innerHTML = qrIconSvg();
+      qr.addEventListener('click', (ev) => { ev.stopPropagation(); openQr('扫码' + meta.histLabel + ' v' + e.version, url, ''); });
+      row.append(ver, when, a, qr);
+      wrap.appendChild(row);
+    });
+    return wrap;
+  }
+
+  function renderCard(app) {
+    const card = document.createElement('article');
+    card.className = 'card';
+
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    head.appendChild(renderIcon(app));
+
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'title-wrap';
+    const name = document.createElement('p');
+    name.className = 'app-name';
+    name.textContent = app.name;
+    const bid = document.createElement('p');
+    bid.className = 'bundle-id';
+    bid.textContent = app.id;
+    titleWrap.append(name, bid);
+    head.appendChild(titleWrap);
+    card.appendChild(head);
+
+    const mac = app.mac || [];
+    const win = app.win || [];
+    const winExe = win.filter(isExe);
+    const winZip = win.filter(isZip);
+    const winOther = win.filter(e => !isExe(e) && !isZip(e));
+    const platforms = document.createElement('div');
+    platforms.className = 'platforms';
+    if (app.ios[0]) platforms.appendChild(platformBtn('ios', app.ios[0], null, app.showPlatformBundleIds));
+    if (app.android[0]) platforms.appendChild(platformBtn('android', app.android[0], null, app.showPlatformBundleIds));
+    if (mac[0]) platforms.appendChild(platformBtn('mac', mac[0]));
+    if (winExe[0]) platforms.appendChild(platformBtn('win', winExe[0], WIN_EXE_META));
+    if (winZip[0]) platforms.appendChild(platformBtn('win', winZip[0], WIN_ZIP_META));
+    if (!winExe.length && !winZip.length && winOther[0]) platforms.appendChild(platformBtn('win', winOther[0]));
+    card.appendChild(platforms);
+
+    const hasHistory = app.ios.length > 1 || app.android.length > 1 || mac.length > 1
+      || winExe.length > 1 || winZip.length > 1 || winOther.length > 1;
+    if (hasHistory) {
+      const toggle = document.createElement('button');
+      toggle.className = 'history-toggle';
+      toggle.textContent = '▸ 历史版本';
+      const history = document.createElement('div');
+      history.className = 'history';
+      history.hidden = true;
+      const iosHist = historySection('ios', app.ios.slice(1));
+      const andHist = historySection('android', app.android.slice(1));
+      const macHist = historySection('mac', mac.slice(1));
+      const winExeHist = historySection('win', winExe.slice(1), WIN_EXE_META);
+      const winZipHist = historySection('win', winZip.slice(1), WIN_ZIP_META);
+      const winOtherHist = (!winExe.length && !winZip.length) ? historySection('win', winOther.slice(1)) : null;
+      if (iosHist) history.appendChild(iosHist);
+      if (andHist) history.appendChild(andHist);
+      if (macHist) history.appendChild(macHist);
+      if (winExeHist) history.appendChild(winExeHist);
+      if (winZipHist) history.appendChild(winZipHist);
+      if (winOtherHist) history.appendChild(winOtherHist);
+      toggle.addEventListener('click', () => {
+        history.hidden = !history.hidden;
+        toggle.textContent = history.hidden ? '▸ 历史版本' : '▾ 收起';
+      });
+      card.append(toggle, history);
+    }
+
+    return card;
+  }
+
+  function openQr(title, url, hint) {
+    const modal = $('#qr-modal');
+    $('#qr-title').textContent = title;
+    $('#qr-hint').textContent = hint || '';
+    const canvasWrap = $('#qr-canvas');
+    canvasWrap.innerHTML = '';
+    if (window.QRCode) {
+      try {
+        new QRCode(canvasWrap, { text: url, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
+      } catch (e) {
+        canvasWrap.textContent = url;
+      }
+    } else {
+      canvasWrap.textContent = url;
+    }
+    modal.hidden = false;
+  }
+
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) $('#qr-modal').hidden = true;
+  });
+
+  async function load() {
+    try {
+      const res = await fetch('apps.json?t=' + Date.now());
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      if (data.siteTitle) {
+        $('#site-title').textContent = data.siteTitle;
+        document.title = data.siteTitle;
+      }
+      if (data.generatedAt) {
+        $('#generated-at').textContent = '更新于 ' + fmtTime(data.generatedAt);
+      }
+      // 给 icon URL 拼上 generatedAt 作 cache buster,避免浏览器拿到旧的(可能损坏的)缓存
+      const iconV = encodeURIComponent(data.generatedAt || Date.now());
+      data.apps.forEach(a => { if (a.icon) a.icon += (a.icon.includes('?') ? '&' : '?') + 'v=' + iconV; });
+      const list = $('#app-list');
+      list.innerHTML = '';
+      if (!data.apps || !data.apps.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = '暂无测试包。发布 APK 或 IPA 后，安装入口会自动显示在这里。';
+        list.appendChild(empty);
+        return;
+      }
+      data.apps.forEach(app => list.appendChild(renderCard(app)));
+    } catch (err) {
+      $('#app-list').innerHTML = `<div class="empty">加载失败: ${err.message}</div>`;
+    }
+  }
+
+  load();
+})();

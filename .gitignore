@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+docs/icons/*
+!docs/icons/.gitkeep
+docs/manifest/*
+!docs/manifest/.gitkeep
+*.ipa
+*.apk
+*.aab
