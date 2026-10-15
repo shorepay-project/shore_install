@@ -1,11 +1,23 @@
 name: Publish distribution page
+run-name: ${{ inputs.release_tag && format('Publish {0}', inputs.release_tag) || '' }}
 
+# Pages 只认 main 上的部署：tag 触发的部署会报成功但页面不更新。
+# Release 事件只负责在 main 上触发一次构建、部署和通知。
 on:
   push:
     branches: [main]
   release:
     types: [published, edited, unpublished, deleted]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 触发本次更新的 Release tag
+        type: string
+        default: ''
+      notify:
+        description: 部署后发飞书通知
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,7 +27,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  forward:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          NOTIFY: ${{ github.event.action == 'published' }}
+        run: >-
+          gh workflow run distribute.yml
+          --repo "$GITHUB_REPOSITORY"
+          --ref main
+          -f release_tag="$RELEASE_TAG"
+          -f notify="$NOTIFY"
+
   build:
+    if: github.event_name != 'release'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -56,7 +87,7 @@ jobs:
 
   notify:
     needs: deploy
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: github.event_name == 'workflow_dispatch' && inputs.notify
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -77,5 +108,5 @@ jobs:
           LARK_APP_SECRET: ${{ secrets.LARK_APP_SECRET }}
           LARK_CHAT_ID: ${{ secrets.LARK_CHAT_ID }}
           LARK_WEBHOOK_URL: ${{ secrets.LARK_WEBHOOK_URL }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: npm run notify-lark

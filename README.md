@@ -31,13 +31,13 @@ node scripts/publish-local.mjs \
   --ipa /absolute/path/ShorePay.ipa
 ```
 
-发布脚本核对两个包的 `com.cloudsshore.wallet` 包名、版本，验证 APK 签名不使用 Android Debug 证书，并验证 IPA 的代码签名及包含登记设备的 provisioning profile。Release 中写入源码提交号；GitHub Actions 在 Release 发布后更新页面。建议先在测试设备上验证新 Release 的安装流程。
+发布脚本核对两个包的 `com.cloudsshore.wallet` 包名、版本，验证 APK 签名不使用 Android Debug 证书，并验证 IPA 的代码签名及包含登记设备的 provisioning profile。Release 中写入源码提交号；Release 发布后，工作流在 main 上重新生成并部署页面（Pages 只采用 main 上的部署，tag 上的部署不会生效）。建议先在测试设备上验证新 Release 的安装流程。
 
 可用 `SHOREPAY_APP_DIR=/absolute/path/to/shorepay` 指定源码目录。
 
 ## Lark 群通知
 
-Release 发布且 Pages 部署成功后，工作流会运行通知步骤。要把 **iOS 和 Android 的最新版本二维码图片** 直接发到指定群，先在 Lark 开放平台创建企业自建应用，开启机器人和消息/图片权限，将机器人加入群，然后在本仓库 **Settings → Secrets and variables → Actions** 添加：
+Release 发布后，main 上的部署成功时，工作流会运行通知步骤。要把 **iOS 和 Android 的最新版本二维码图片** 直接发到指定群，先在 Lark 开放平台创建企业自建应用，开启机器人和消息/图片权限，将机器人加入群，然后在本仓库 **Settings → Secrets and variables → Actions** 添加：
 
 | Secret | 用途 |
 | --- | --- |
