@@ -76,6 +76,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       actions: read
+      contents: write
       pages: write
       id-token: write
     environment:
@@ -83,14 +84,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       # deploy-pages 固定拿提交号当构建版本号：同一提交再次部署会命中旧部署，
-      # 几秒就报成功但页面不换，旧部署还会在不同节点间串。这里每次运行用独有的
-      # 版本号直接调用 Pages 部署接口，并等到部署真正完成。
+      # 几秒就报成功但页面不换，旧部署还会在不同节点间串。版本号又必须是仓库里的
+      # 提交，所以每次部署先按当前文件生成一个不挂在任何分支上的提交，用它的提交号
+      # 直接调用 Pages 部署接口，并等到部署真正完成。
       - name: Deploy Pages
         id: deployment
         uses: actions/github-script@v9
         with:
           script: |
-            const crypto = require('crypto');
             const { owner, repo } = context.repo;
             const { data: { artifacts } } = await github.rest.actions.listWorkflowRunArtifacts({
               owner,
@@ -101,10 +102,15 @@ jobs:
             if (!artifact) {
               throw new Error('没有找到 github-pages 产物');
             }
-            const version = crypto
-              .createHash('sha1')
-              .update(`${context.sha}:${context.runId}:${process.env.GITHUB_RUN_ATTEMPT}`)
-              .digest('hex');
+            const { data: source } = await github.rest.git.getCommit({ owner, repo, commit_sha: context.sha });
+            const { data: buildCommit } = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: `安装页部署 ${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}`,
+              tree: source.tree.sha,
+              parents: [context.sha],
+            });
+            const version = buildCommit.sha;
             const { data: created } = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
               owner,
               repo,
