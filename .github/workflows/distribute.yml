@@ -75,15 +75,66 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     permissions:
+      actions: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # deploy-pages 固定拿提交号当构建版本号：同一提交再次部署会命中旧部署，
+      # 几秒就报成功但页面不换，旧部署还会在不同节点间串。这里每次运行用独有的
+      # 版本号直接调用 Pages 部署接口，并等到部署真正完成。
       - name: Deploy Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const crypto = require('crypto');
+            const { owner, repo } = context.repo;
+            const { data: { artifacts } } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id: context.runId,
+            });
+            const artifact = artifacts.find((item) => item.name === 'github-pages');
+            if (!artifact) {
+              throw new Error('没有找到 github-pages 产物');
+            }
+            const version = crypto
+              .createHash('sha1')
+              .update(`${context.sha}:${context.runId}:${process.env.GITHUB_RUN_ATTEMPT}`)
+              .digest('hex');
+            const { data: created } = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
+              owner,
+              repo,
+              artifact_id: artifact.id,
+              pages_build_version: version,
+              oidc_token: await core.getIDToken(),
+            });
+            const id = created.id || created.status_url?.split('/').pop() || version;
+            core.info(`部署 ${id}，构建版本 ${version}，产物 ${artifact.id}`);
+            const failed = ['deployment_failed', 'deployment_content_failed', 'deployment_cancelled', 'deployment_lost'];
+            const deadline = Date.now() + 10 * 60 * 1000;
+            for (;;) {
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+              const { data } = await github.request('GET /repos/{owner}/{repo}/pages/deployments/{id}', {
+                owner,
+                repo,
+                id,
+              });
+              core.info(`状态 ${data.status}`);
+              if (data.status === 'succeed') {
+                break;
+              }
+              if (failed.includes(data.status)) {
+                throw new Error(`Pages 部署失败：${data.status}`);
+              }
+              if (Date.now() > deadline) {
+                throw new Error('Pages 部署超时');
+              }
+            }
+            core.setOutput('page_url', created.page_url);
 
   notify:
     needs: deploy
