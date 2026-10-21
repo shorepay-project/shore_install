@@ -58,4 +58,6 @@ npm test
 
 `config.json` 管理仓库地址、Pages 地址和页面标题。`scripts/build-metadata.mjs` 负责解析 Release 和生成 `docs/apps.json`、iOS manifest；生成文件由 Actions 作为 Pages artifact 发布，不提交到 Git 历史。页面展示最近三个版本，历史 Release 仍保留在 GitHub。
 
+内测升级检测读取 `apps.json` 中 iOS 和 Android 条目的 `versionCode`，两端都与应用运行时注入的 `VERSION_CODE` 比较。发布时优先在 Release 描述中单独写一行 `VERSION_CODE: YYMMDDNN`；同时发布 APK 时，生成器也可从 APK 文件名末尾的八位码补出该字段。只发布 IPA 时必须写明这一行，否则该版本不会触发应用内更新提示。显示用的系统 build 号与 `VERSION_CODE` 是不同字段。
+
 旧分发页的其他应用、安装包和历史 Release 没有复制到这个仓库。
