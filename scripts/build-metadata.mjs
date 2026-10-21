@@ -45,6 +45,17 @@ export function parseDistributionGroupId(releaseBody) {
   return match?.[1] || null;
 }
 
+export function releaseVersionCode(releaseBody, assets = []) {
+  const declared = String(releaseBody || '').match(/^\s*VERSION_CODE:\s*([0-9]{8})\s*$/im)?.[1];
+  const apkCodes = [...new Set(assets
+    .map(asset => String(asset?.name || '').match(/_([0-9]{8})\.apk$/i)?.[1])
+    .filter(Boolean))];
+  if (declared) {
+    return apkCodes.every(code => code === declared) ? Number(declared) : null;
+  }
+  return apkCodes.length === 1 ? Number(apkCodes[0]) : null;
+}
+
 export function distributionGroup(bundleId, groupId) {
   // key 统一小写,与 assetProjectKeyForRelease 的归一化一致,避免 MyApp/myapp 被展示层当两张卡、保留层当一个额度。
   return groupId
@@ -536,6 +547,7 @@ async function main() {
     const rank = (n) => { const p = platformOf(extOf(n)); return (p === 'ios' || p === 'android') ? 0 : p ? 1 : 2; };
     const orderedAssets = rawAssets.slice().sort((a, b) => rank(a.name) - rank(b.name));
     const releaseGroupId = parseDistributionGroupId(rel.body);
+    const versionCode = releaseVersionCode(rel.body, rawAssets);
 
     let releaseBundleId = null;
     let releaseAppName = null;
@@ -649,6 +661,7 @@ async function main() {
       const entry = {
         bundleId: parsed.bundleId,
         version: parsed.version,
+        ...(versionCode == null ? {} : { versionCode }),
         uploadedAt,
         tag: rel.tag_name,
         releaseName: rel.name || rel.tag_name,

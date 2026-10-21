@@ -5,6 +5,7 @@ import {
   assetDownloadCount,
   distributionGroup,
   parseDistributionGroupId,
+  releaseVersionCode,
   platformBundleIdsDiffer,
   releaseProjectKeys,
   retainLatestVersions,
@@ -17,6 +18,18 @@ test('reads a distribution group ID from release notes', () => {
     'quickchat',
   );
   assert.equal(parseDistributionGroupId('Release notes only'), null);
+});
+
+test('publishes one VERSION_CODE for both assets in a release', () => {
+  const assets = [
+    { name: 'shorepay_8.0.10_test.ipa' },
+    { name: 'shorepay_8.0.10_26102104.apk' },
+  ];
+  assert.equal(releaseVersionCode('', assets), 26102104);
+  assert.equal(releaseVersionCode('VERSION_CODE: 26102104', assets), 26102104);
+  assert.equal(releaseVersionCode('VERSION_CODE: 26102105', assets), null);
+  assert.equal(releaseVersionCode('', [{ name: 'shorepay_8.0.10_test.ipa' }]), null);
+  assert.equal(releaseVersionCode('VERSION_CODE: 26102104', [assets[0]]), 26102104);
 });
 
 test('groups by configured ID and falls back to bundle ID', () => {
